@@ -75,6 +75,33 @@ var _ = Describe("PlaylistRepository - Smart Playlists", func() {
 				newPls := model.Playlist{Name: "Great!", OwnerID: "userid", Rules: rules}
 				Expect(repo.Put(ctx, &newPls)).To(MatchError(ContainSubstring("invalid criteria expression")))
 			})
+
+			Context("already stored in the DB", func() {
+				var broken model.Playlist
+
+				BeforeEach(func() {
+					broken = model.Playlist{Name: "Broken", OwnerID: "userid", Rules: rules}
+					Expect(repo.Put(ctx, &broken)).To(Succeed())
+					DeferCleanup(func() { Expect(repo.Delete(ctx, broken.ID)).To(Succeed()) })
+
+					_, err := GetDBXBuilder().NewQuery("update playlist set rules = {:rules} where id = {:id}").
+						Bind(dbx.Params{"rules": `{"all":[{}],"sort":"+lastplayed","limit":10}`, "id": broken.ID}).Execute()
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("does not hide the other playlists", func() {
+					all, err := repo.GetAll(ctx)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(slice.Map(all, func(p model.Playlist) string { return p.ID })).To(
+						ContainElements(plsBest.ID, plsCool.ID, broken.ID))
+				})
+
+				It("returns the playlist without its rules", func() {
+					pls, err := repo.Get(ctx, broken.ID)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(pls.Rules).To(BeNil())
+				})
+			})
 		})
 
 		Context("re-imported from disk", func() {

@@ -27,8 +27,13 @@ type dbPlaylist struct {
 }
 
 func (p *dbPlaylist) PostScan() error {
-	if p.Rules.String != "" {
-		return json.Unmarshal([]byte(p.Rules.String), &p.Playlist.Rules)
+	if p.Rules.String == "" {
+		return nil
+	}
+	// Rules come from clients and .nsp files, so a bad one must not fail every query listing it
+	if err := json.Unmarshal([]byte(p.Rules.String), &p.Playlist.Rules); err != nil {
+		log.Warn("Ignoring invalid smart playlist rules", "playlist", p.Name, "id", p.ID, "rules", p.Rules.String, err)
+		p.Playlist.Rules = nil
 	}
 	return nil
 }

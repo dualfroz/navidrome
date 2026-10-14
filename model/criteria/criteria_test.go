@@ -103,6 +103,31 @@ var _ = Describe("Criteria", func() {
 		)
 	})
 
+	Context("with empty groups", func() {
+		DescribeTable("rejects criteria with no rules other than empty groups",
+			func(jsonStr string) {
+				var c Criteria
+				err := json.Unmarshal([]byte(jsonStr), &c)
+				gomega.Expect(err).To(gomega.MatchError(gomega.ContainSubstring("missing rules")))
+			},
+			Entry("empty object", `{"all":[{}],"sort":"+lastplayed","limit":10}`),
+			Entry("empty nested all", `{"all":[{"all":[]}],"sort":"+lastplayed","limit":10}`),
+			Entry("empty nested any", `{"any":[{"any":[]}]}`),
+			Entry("nested group holding an empty object", `{"all":[{"any":[{}]}]}`),
+		)
+
+		It("drops empty nested groups, so the rules can be read back after saving", func() {
+			var c Criteria
+			err := json.Unmarshal([]byte(`{"all":[{"is":{"loved":true}},{"any":[]}]}`), &c)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			gomega.Expect(c.Expression).To(gomega.Equal(All{Is{"loved": true}}))
+
+			j, err := json.Marshal(c)
+			gomega.Expect(err).ToNot(gomega.HaveOccurred())
+			gomega.Expect(string(j)).To(gomega.Equal(`{"all":[{"is":{"loved":true}}]}`))
+		})
+	})
+
 	Describe("LimitPercent", func() {
 		Describe("JSON round-trip", func() {
 			It("marshals and unmarshals limitPercent", func() {

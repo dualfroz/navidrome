@@ -26,6 +26,9 @@ func (uc *unmarshalConjunctionType) UnmarshalJSON(data []byte) error {
 			if expr == nil {
 				return fmt.Errorf(`invalid expression key '%s'`, k)
 			}
+			if isEmptyConjunction(expr) {
+				continue
+			}
 			es = append(es, expr)
 		}
 	}
@@ -152,6 +155,18 @@ func unmarshalConjunction(conjName string, rawValue json.RawMessage) Expression 
 		return All(items)
 	}
 	return nil
+}
+
+// isEmptyConjunction reports whether expr is a group with no rules. Such groups are dropped
+// while parsing: they would be saved as {}, which cannot be read back.
+func isEmptyConjunction(expr Expression) bool {
+	switch e := expr.(type) {
+	case All:
+		return len(e) == 0
+	case Any:
+		return len(e) == 0
+	}
+	return false
 }
 
 func marshalExpression(name string, value map[string]any) ([]byte, error) {
